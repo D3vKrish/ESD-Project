@@ -1,0 +1,924 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Current Monitor</title>
+<style>
+:root {
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --border: #e6e5e0;
+  --grid: #ecebe6;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-3: #8a8983;
+  --series: #2a78d6;
+  --band: rgba(12, 163, 12, 0.08);
+  --band-edge: #0ca30c;
+  --good: #0ca30c;
+  --critical: #d03b3b;
+  --warning: #b97c00;
+  --shadow: 0 1px 2px rgba(0,0,0,.04), 0 2px 8px rgba(0,0,0,.04);
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #0d0d0d; --surface: #1a1a19; --border: #2c2c2a; --grid: #262624;
+    --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #8d8c85;
+    --series: #3987e5; --band: rgba(12, 163, 12, 0.12); --band-edge: #0ca30c;
+    --critical: #e66767; --warning: #fab219; --shadow: none; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #0d0d0d; --surface: #1a1a19; --border: #2c2c2a; --grid: #262624;
+  --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #8d8c85;
+  --series: #3987e5; --band: rgba(12, 163, 12, 0.12); --band-edge: #0ca30c;
+  --critical: #e66767; --warning: #fab219; --shadow: none; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--page); color: var(--ink);
+  font: 14px/1.45 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1280px; margin: 0 auto; padding: 20px 16px 40px; }
+
+header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+header h1 { font-size: 18px; font-weight: 650; margin: 0; letter-spacing: -.01em; }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
+  border: 1px solid var(--border); border-radius: 999px; font-size: 12px; color: var(--ink-2);
+  background: var(--surface);
+}
+.pill b { font-weight: 650; color: var(--ink); letter-spacing: .04em; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); }
+.dot.on { background: var(--good); box-shadow: 0 0 0 3px rgba(12,163,12,.18); animation: pulse 1.6s infinite; }
+.dot.off { background: var(--critical); }
+@keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(12,163,12,0); } }
+.spacer { flex: 1; }
+.clock { font-family: var(--mono); color: var(--ink-2); font-size: 13px; }
+button, input {
+  font: inherit; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 8px;
+}
+button { padding: 6px 12px; cursor: pointer; }
+button:hover { border-color: var(--ink-3); }
+button.sm { padding: 3px 10px; font-size: 12px; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.dot.warn { background: var(--warning); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--series); outline-offset: 1px; }
+
+.grid { display: grid; gap: 12px; grid-template-columns: 1.3fr 1fr 1fr 1fr; margin-bottom: 12px; }
+@media (max-width: 980px) { .grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px; box-shadow: var(--shadow); min-width: 0;
+}
+.label { font-size: 12px; color: var(--ink-2); font-weight: 550; letter-spacing: .02em; }
+.hero { display: flex; align-items: baseline; gap: 6px; margin: 6px 0 10px; }
+.hero .num { font-size: 44px; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1; }
+.hero .unit { font-size: 16px; color: var(--ink-2); }
+.status {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600;
+  padding: 3px 10px; border-radius: 999px; border: 1px solid currentColor;
+}
+.status.ok { color: var(--good); }
+.status.hi, .status.lo { color: var(--critical); }
+.status.wait { color: var(--ink-3); }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin-top: 10px; font-size: 13px; }
+.kv dt { color: var(--ink-2); }
+.kv dd { margin: 0; text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.thr { display: flex; gap: 8px; margin-top: 10px; align-items: end; flex-wrap: wrap; }
+.thr label { display: grid; gap: 4px; font-size: 12px; color: var(--ink-2); flex: 1; min-width: 80px; }
+.thr input { width: 100%; padding: 6px 8px; font-family: var(--mono); }
+.range-big { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; margin-top: 6px; letter-spacing: -.01em; }
+.range-big span { color: var(--ink-3); font-weight: 400; }
+.bar { height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; margin-top: 12px; }
+.bar > i { display: block; height: 100%; background: var(--good); border-radius: 3px; transition: width .3s; }
+
+.chart-card { padding: 14px 16px 10px; }
+.chart-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.chart-head h2 { font-size: 14px; margin: 0; font-weight: 650; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--ink-2); flex-wrap: wrap; }
+.legend i { display: inline-block; vertical-align: middle; margin-right: 6px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 5px 10px; font-size: 12.5px; color: var(--ink-2); }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button.on { background: var(--ink); color: var(--surface); }
+.plot { position: relative; height: 420px; }
+@media (max-width: 560px) { .plot { height: 300px; } }
+canvas { display: block; width: 100%; height: 100%; }
+.tip {
+  position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  white-space: nowrap; display: none; z-index: 2;
+}
+.tip .v { font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.tip .m { color: var(--ink-2); font-family: var(--mono); }
+
+.lower { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-top: 12px; }
+@media (max-width: 860px) { .lower { grid-template-columns: 1fr; } }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-weight: 550; color: var(--ink-2); font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+td { padding: 6px 8px; border-bottom: 1px solid var(--grid); font-family: var(--mono); font-variant-numeric: tabular-nums; }
+td.r, th.r { text-align: right; }
+.events { max-height: 220px; overflow: auto; }
+.empty { color: var(--ink-3); font-size: 13px; padding: 10px 8px; }
+.tag { font-family: inherit; font-weight: 600; font-size: 12px; }
+.tag.hi, .tag.lo { color: var(--critical); }
+button.icon { width: 34px; height: 34px; padding: 0; display: inline-grid; place-items: center; }
+button.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); font-weight: 600; }
+.pill-btn { cursor: pointer; font: inherit; font-size: 12px; }
+.pill-btn:hover { border-color: var(--ink-3); }
+.muted { color: var(--ink-3); }
+.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 20; }
+.drawer {
+  position: fixed; top: 0; left: 0; bottom: 0; width: min(420px, 100vw); z-index: 21;
+  background: var(--surface); border-right: 1px solid var(--border); box-shadow: 8px 0 32px rgba(0,0,0,.18);
+  transform: translateX(-102%); display: flex; flex-direction: column;
+  visibility: hidden; transition: transform .22s ease, visibility 0s linear .22s;
+}
+.drawer.open { transform: none; visibility: visible; transition: transform .22s ease; }
+.drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.drawer-head h2 { margin: 0; font-size: 16px; }
+.drawer-body { overflow-y: auto; padding: 4px 16px 24px; flex: 1; }
+.drawer section { padding: 14px 0; border-bottom: 1px solid var(--grid); }
+.drawer section:last-child { border-bottom: 0; }
+.drawer h3 { font-size: 13.5px; margin: 0 0 6px; }
+.sec-head { display: flex; justify-content: space-between; align-items: center; }
+.hint { color: var(--ink-2); font-size: 12.5px; margin: 0 0 10px; }
+.field { display: grid; gap: 5px; font-size: 12.5px; color: var(--ink-2); font-weight: 550; margin: 12px 0 0; }
+.field input { padding: 8px 10px; font-weight: 400; width: 100%; }
+.field small { color: var(--ink-3); font-weight: 400; }
+.field input.bad { border-color: var(--critical); }
+.seg-full { display: flex; }
+.seg-full button { flex: 1; padding: 7px 8px; }
+.unit-in { position: relative; display: block; }
+.unit-in i { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-style: normal; color: var(--ink-3); font-size: 12px; }
+.unit-in input { padding-right: 34px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 13px; margin-top: 12px; color: var(--ink); }
+.switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12.5px; }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch span { width: 34px; height: 20px; border-radius: 10px; background: var(--border); position: relative; transition: background .15s; }
+.switch span::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
+.switch input:checked + span { background: var(--good); }
+.switch input:checked + span::after { transform: translateX(14px); }
+.switch input:focus-visible + span { outline: 2px solid var(--series); outline-offset: 2px; }
+.switch em { font-style: normal; color: var(--ink-2); min-width: 22px; }
+.wa-state { font-size: 12.5px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); }
+.wa-state.ok { color: var(--good); border-color: currentColor; }
+.wa-state.bad { color: var(--critical); border-color: currentColor; }
+.wa-state.warn { color: var(--warning); border-color: currentColor; }
+.howto { margin-top: 10px; font-size: 12.5px; color: var(--ink-2); }
+.input-row { display: flex; gap: 6px; align-items: stretch; }
+.input-row input { flex: 1; min-width: 0; }
+.field select { padding: 8px 10px; font: inherit; font-weight: 400; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.sub-box { margin-top: 12px; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 8px; display: grid; gap: 6px; }
+.sub-box .sub-label { font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+.sub-box code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-family: var(--mono); font-size: 12px; background: var(--grid); padding: 5px 8px; border-radius: 6px; }
+.sub-box small { color: var(--ink-3); font-size: 12px; }
+.sub-box a, .howto a { color: var(--series); }
+.howto .field { margin-top: 10px; }
+.howto summary { cursor: pointer; color: var(--series); font-weight: 550; }
+.howto ol { padding-left: 18px; margin: 8px 0; }
+.howto li { margin-bottom: 4px; }
+.howto code { font-family: var(--mono); background: var(--grid); padding: 1px 5px; border-radius: 4px; font-size: 11.5px; }
+.drawer-actions { display: flex; gap: 8px; padding-top: 16px; }
+.drawer-actions button { flex: 1; padding: 9px 12px; }
+.form-msg { min-height: 20px; font-size: 12.5px; margin-top: 8px; }
+.wa-hist { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+.wa-hist li { padding: 7px 0; border-bottom: 1px solid var(--grid); display: grid; gap: 2px; }
+.wa-hist li:last-child { border-bottom: 0; }
+.wa-hist .meta { color: var(--ink-3); font-family: var(--mono); font-size: 11.5px; }
+.wa-hist .err { color: var(--critical); }
+footer { margin-top: 18px; color: var(--ink-3); font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <button id="menuBtn" class="icon" aria-label="Open settings" aria-expanded="false" aria-controls="drawer">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <h1>Current Monitor</h1>
+    <span class="pill"><span class="dot" id="connDot"></span><b id="modeTxt">—</b><span id="statusTxt">connecting…</span></span>
+    <div class="spacer"></div>
+    <button class="pill pill-btn" id="waPill" title="Push alert settings"><span class="dot" id="waDot"></span><b>Alerts</b><span id="waTxt">—</span></button>
+    <span class="clock" id="clock">--:--:--</span>
+    <button id="themeBtn" title="Toggle theme" aria-label="Toggle theme">◐</button>
+  </header>
+
+  <section class="grid">
+    <div class="card">
+      <div class="label">Live current</div>
+      <div class="hero"><span class="num" id="liveVal">—</span><span class="unit">mA</span></div>
+      <span class="status wait" id="liveStatus">● waiting for data</span>
+      <dl class="kv">
+        <dt>Device time</dt><dd id="devTime">—</dd>
+        <dt>Seq</dt><dd id="seqVal">—</dd>
+      </dl>
+    </div>
+
+    <div class="card">
+      <div class="label">Threshold range</div>
+      <div class="range-big"><span id="thrLowTxt">—</span> – <span id="thrHighTxt">—</span> <span>mA</span></div>
+      <form class="thr" id="thrForm">
+        <label>Low<input id="thrLow" type="number" step="1" inputmode="numeric"></label>
+        <label>High<input id="thrHigh" type="number" step="1" inputmode="numeric"></label>
+        <button type="submit">Apply</button>
+      </form>
+      <div id="thrMsg" style="font-size:12px;margin-top:8px;min-height:18px"></div>
+    </div>
+
+    <div class="card">
+      <div class="label">Window stats</div>
+      <dl class="kv">
+        <dt>Min</dt><dd id="stMin">—</dd>
+        <dt>Avg</dt><dd id="stAvg">—</dd>
+        <dt>Max</dt><dd id="stMax">—</dd>
+        <dt>In range</dt><dd id="stIn">—</dd>
+      </dl>
+      <div class="bar" aria-hidden="true"><i id="inBar" style="width:0"></i></div>
+    </div>
+
+    <div class="card">
+      <div class="label">Link</div>
+      <dl class="kv">
+        <dt>Samples</dt><dd id="lkTotal">0</dd>
+        <dt>Rate</dt><dd id="lkRate">—</dd>
+        <dt>Lost pkts</dt><dd id="lkLost">0</dd>
+        <dt>Elapsed</dt><dd id="lkElapsed">—</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section class="card chart-card">
+    <div class="chart-head">
+      <h2>Current over time</h2>
+      <div class="legend">
+        <span><i style="width:16px;height:2px;background:var(--series)"></i>Current (mA)</span>
+        <span><i style="width:16px;height:10px;background:var(--band);border-top:1px dashed var(--band-edge);border-bottom:1px dashed var(--band-edge)"></i>Threshold range</span>
+        <span><i style="width:8px;height:8px;border-radius:50%;background:var(--critical)"></i>Out of range</span>
+      </div>
+      <div class="spacer"></div>
+      <div class="seg" id="winSeg">
+        <button data-w="30">30s</button><button data-w="60" class="on">1m</button><button data-w="180">3m</button><button data-w="0">All</button>
+      </div>
+      <button id="pauseBtn">Pause</button>
+    </div>
+    <div class="plot" id="plot">
+      <canvas id="cv"></canvas>
+      <div class="tip" id="tip"></div>
+    </div>
+  </section>
+
+  <section class="lower">
+    <div class="card">
+      <div class="label" style="margin-bottom:6px">Threshold events</div>
+      <div class="events">
+        <table>
+          <thead><tr><th>Time</th><th>Event</th><th class="r">Peak</th><th class="r">Duration</th></tr></thead>
+          <tbody id="evBody"><tr><td colspan="4" class="empty">No excursions yet.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="label" style="margin-bottom:6px">Latest samples</div>
+      <table>
+        <thead><tr><th>Time</th><th class="r">mA</th><th class="r">Seq</th></tr></thead>
+        <tbody id="recentBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>INA219 → CAN → Arduino → serial → Python → this page</footer>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" aria-hidden="true">
+  <div class="drawer-head">
+    <h2 id="drawerTitle">Settings</h2>
+    <button class="icon" id="drawerClose" aria-label="Close settings">✕</button>
+  </div>
+
+  <form id="waForm" class="drawer-body" autocomplete="off" novalidate>
+    <section>
+      <div class="sec-head">
+        <h3>Push alerts <span class="muted">· ntfy</span></h3>
+        <label class="switch"><input type="checkbox" id="waEnabled"><span></span><em id="waEnabledTxt">On</em></label>
+      </div>
+      <p class="hint">Get a notification on your phone when the current leaves the threshold range.
+        Install the free <b>ntfy</b> app and subscribe to the topic below. No account needed.</p>
+      <div class="wa-state" id="waState">—</div>
+
+      <div class="field">Topic
+        <div class="input-row">
+          <input id="ntTopic" placeholder="esd-current-x7k2p9" maxlength="64" spellcheck="false" autocapitalize="off">
+          <button type="button" id="ntGen" title="Generate a random, hard-to-guess topic">Generate</button>
+        </div>
+        <small>Anyone who knows the topic can read it, so use something hard to guess. Letters, digits, - and _ only.</small>
+      </div>
+
+      <div class="sub-box" id="ntSub" hidden>
+        <div class="sub-label">Subscribe on your phone</div>
+        <div class="input-row">
+          <code id="ntSubUrl"></code>
+          <button type="button" id="ntCopy" class="sm">Copy</button>
+        </div>
+        <small>In the ntfy app tap <b>+</b> and enter the topic <b id="ntSubTopic"></b>
+          <span id="ntSubSrv"></span>, or open <a id="ntSubLink" target="_blank" rel="noopener">this link</a> in a browser to get notifications there too.</small>
+      </div>
+
+
+      <details class="howto"><summary>How to set up (1 min)</summary>
+        <ol>
+          <li>Install <b>ntfy</b> from the Play Store, App Store or F-Droid.</li>
+          <li>Press <b>Generate</b> above (or type your own topic), then <b>Save</b>.</li>
+          <li>In the app, tap <b>+</b> and subscribe to the same topic.</li>
+          <li>Press <b>Send test notification</b>. It should appear on your phone within a few seconds.</li>
+        </ol>
+        <p>Everyone subscribed to the topic gets the alerts, so a whole team can share it.</p>
+      </details>
+
+      <details class="howto"><summary>Advanced: own server / access token</summary>
+        <label class="field">Server URL<input id="ntServer" placeholder="https://ntfy.sh" spellcheck="false"></label>
+        <label class="field">Access token (optional)
+          <input id="ntToken" type="password" placeholder="tk_…" autocomplete="off">
+          <small id="ntTokenHint">Only needed for protected topics or a self-hosted server.</small>
+        </label>
+        <label class="check" id="ntClearRow" hidden><input type="checkbox" id="ntClear"> Remove the saved token</label>
+      </details>
+    </section>
+
+    <section>
+      <h3>Alert rules</h3>
+      <div class="row2">
+        <label class="field">Alert after out of range for
+          <span class="unit-in"><input id="waHold" type="number" min="0" max="60000" step="100"><i>ms</i></span>
+        </label>
+        <label class="field">Minimum gap between alerts
+          <span class="unit-in"><input id="waCool" type="number" min="0" max="86400" step="10"><i>s</i></span>
+        </label>
+      </div>
+
+      <label class="check"><input type="checkbox" id="waRecov"> Also message me when the current is back in range</label>
+    </section>
+
+    <div class="drawer-actions">
+      <button type="submit" class="primary" id="waSave">Save</button>
+      <button type="button" id="waTest">Send test notification</button>
+    </div>
+    <div class="form-msg" id="waMsg" role="status"></div>
+
+    <section>
+      <h3>Recent notifications</h3>
+      <ul class="wa-hist" id="waHist"><li class="muted">None sent yet.</li></ul>
+    </section>
+  </form>
+</aside>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  // ---------------- state ----------------
+  const S = {
+    samples: [],          // {t (ms, device), i (mA), seq, wall}
+    low: 200, high: 800,
+    windowS: 60, paused: false, frozen: null,
+    hover: null, events: [], openEv: null, thrDirty: false,
+    meta: {}, lastMsg: 0,
+  };
+  const MAX_POINTS = 50000;
+
+  // ---------------- theme ----------------
+  try { const t = localStorage.getItem('cm-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
+  $('themeBtn').onclick = () => {
+    const dark = document.documentElement.dataset.theme
+      ? document.documentElement.dataset.theme === 'dark'
+      : matchMedia('(prefers-color-scheme: dark)').matches;
+    const next = dark ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('cm-theme', next); } catch {}
+    draw();
+  };
+
+  // ---------------- formatting ----------------
+  const fmtElapsed = ms => {
+    const s = Math.max(0, ms) / 1000, m = Math.floor(s / 60);
+    return `${String(m).padStart(2, '0')}:${(s - m * 60).toFixed(1).padStart(4, '0')}`;
+  };
+  const fmtAxis = ms => {
+    const s = Math.round(ms / 1000), m = Math.floor(s / 60);
+    return `${m}:${String(s - m * 60).padStart(2, '0')}`;
+  };
+  const fmtWall = w => new Date(w * 1000).toLocaleTimeString([], { hour12: false });
+  const t0 = () => S.samples.length ? S.samples[0].t : 0;
+  const state = i => i > S.high ? 'hi' : i < S.low ? 'lo' : 'ok';
+
+  // ---------------- data in ----------------
+  function ingest(batch) {
+    for (const s of batch) {
+      S.samples.push(s);
+      trackEvent(s);
+    }
+    if (S.samples.length > MAX_POINTS) S.samples.splice(0, S.samples.length - MAX_POINTS);
+  }
+
+  function trackEvent(s) {
+    const st = state(s.i);
+    const ev = S.openEv;
+    if (ev && (st !== ev.kind)) {           // excursion ended
+      ev.end = s.t; S.openEv = null;
+    }
+    if (st !== 'ok') {
+      // debounce: noise hovering at a threshold re-enters the same excursion within 1 s
+      const prev = S.events[0];
+      if (!S.openEv && prev && prev.kind === st && prev.end !== null && s.t - prev.end < 1000) {
+        prev.end = null; S.openEv = prev;
+      }
+      if (!S.openEv) {
+        S.openEv = { kind: st, start: s.t, end: null, peak: s.i };
+        S.events.unshift(S.openEv);
+        if (S.events.length > 100) S.events.pop();
+      } else {
+        S.openEv.peak = st === 'hi' ? Math.max(S.openEv.peak, s.i) : Math.min(S.openEv.peak, s.i);
+      }
+    }
+  }
+
+  function rebuildEvents() {   // thresholds changed: recompute excursions from history
+    S.events = []; S.openEv = null;
+    for (const s of S.samples) trackEvent(s);
+  }
+
+  function applyMeta(m) {
+    const thrChanged = m.low !== S.low || m.high !== S.high;
+    S.meta = m; S.low = m.low; S.high = m.high;
+    $('modeTxt').textContent = (m.mode || '').toUpperCase();
+    $('statusTxt').textContent = (m.status || '').replace(/^(live|demo) · /, '');
+    $('thrLowTxt').textContent = Math.round(S.low);
+    $('thrHighTxt').textContent = Math.round(S.high);
+    // Only sync the inputs from the server while the user has no unsaved edits in them.
+    if (!S.thrDirty) { $('thrLow').value = S.low; $('thrHigh').value = S.high; }
+    renderAlerts(m.alerts);
+    $('lkTotal').textContent = m.total.toLocaleString();
+    $('lkLost').textContent = m.lost.toLocaleString();
+    return thrChanged;
+  }
+
+  async function boot() {
+    try {
+      const r = await fetch('/api/history');
+      const j = await r.json();
+      applyMeta(j.meta); ingest(j.samples);
+      S.lastMsg = performance.now(); updatePanels(); draw();
+    } catch {}
+    connect();
+  }
+
+  function connect() {
+    const es = new EventSource('/api/events');
+    es.onmessage = e => {
+      const j = JSON.parse(e.data);
+      S.lastMsg = performance.now();
+      const changed = applyMeta(j.meta);
+      ingest(j.samples);
+      if (changed) rebuildEvents();
+    };
+    es.onerror = () => { $('connDot').className = 'dot off'; $('statusTxt').textContent = 'server unreachable — retrying'; };
+  }
+
+  // ---------------- thresholds ----------------
+  const thrMsg = (txt, bad) => { const m = $('thrMsg'); m.textContent = txt; m.style.color = bad ? 'var(--critical)' : 'var(--good)'; };
+  for (const id of ['thrLow', 'thrHigh']) {
+    $(id).addEventListener('input', () => { S.thrDirty = true; thrMsg('Unsaved: press Apply or Enter'); $('thrMsg').style.color = 'var(--ink-3)'; });
+    $(id).addEventListener('keydown', e => { if (e.key === 'Escape') { S.thrDirty = false; thrMsg(''); applyMeta(S.meta); } });
+  }
+  $('thrForm').onsubmit = async e => {
+    e.preventDefault();
+    const low = parseFloat($('thrLow').value), high = parseFloat($('thrHigh').value);
+    if (!Number.isFinite(low) || !Number.isFinite(high)) { thrMsg('Enter both values', true); return; }
+    if (!(low < high)) { thrMsg('Low must be less than High', true); return; }
+    try {
+      const r = await fetch('/api/thresholds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ low, high }) });
+      const j = await r.json();
+      if (!r.ok) { thrMsg(j.error || 'Rejected by server', true); return; }
+      S.thrDirty = false; applyMeta(j); rebuildEvents(); draw();
+      thrMsg(`✓ Saved ${Math.round(low)}–${Math.round(high)} mA`);
+    } catch { thrMsg('Server unreachable', true); }
+  };
+
+  // ---------------- push alerts (ntfy): header pill ----------------
+  function renderAlerts(a) {
+    if (!a) return;
+    const last = a.last;
+    let txt, dot;
+    if (!a.configured) { txt = 'set up'; dot = ''; }
+    else if (a.muted) { txt = 'off'; dot = 'warn'; }
+    else if (last && !last.ok) { txt = 'send failed'; dot = 'off'; }
+    else { txt = `on · ${a.sent} sent`; dot = 'on'; }
+    $('waTxt').textContent = txt;
+    $('waDot').className = 'dot ' + dot;
+    $('waPill').title = !a.configured ? `Push alerts not set up: ${a.problem}. Click to configure.`
+      : `ntfy topic "${a.topic}" on ${a.server}` + (last ? `\nLast: ${last.ok ? 'sent' : 'FAILED: ' + last.error}` : '');
+    if (drawerOpen) renderWaState(a);
+  }
+
+  // ---------------- settings drawer ----------------
+  let drawerOpen = false, waDirty = false, lastFocus = null;
+  const drawer = $('drawer'), scrim = $('scrim');
+
+  function openDrawer() {
+    lastFocus = document.activeElement;
+    drawerOpen = true; drawer.classList.add('open'); drawer.setAttribute('aria-hidden', 'false');
+    scrim.hidden = false; $('menuBtn').setAttribute('aria-expanded', 'true');
+    loadWaConfig();
+    setTimeout(() => $('ntTopic').focus(), 230);
+  }
+  function closeDrawer() {
+    drawerOpen = false; drawer.classList.remove('open'); drawer.setAttribute('aria-hidden', 'true');
+    scrim.hidden = true; $('menuBtn').setAttribute('aria-expanded', 'false');
+    if (lastFocus) lastFocus.focus();
+  }
+  $('menuBtn').onclick = () => drawerOpen ? closeDrawer() : openDrawer();
+  $('waPill').onclick = openDrawer;
+  $('drawerClose').onclick = closeDrawer;
+  scrim.onclick = closeDrawer;
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && drawerOpen) closeDrawer(); });
+
+  const waMsg = (txt, kind) => { const m = $('waMsg'); m.textContent = txt; m.style.color = kind === 'bad' ? 'var(--critical)' : kind === 'ok' ? 'var(--good)' : 'var(--ink-3)'; };
+  function markDirty() { waDirty = true; waMsg('Unsaved changes'); }
+  $('waForm').addEventListener('input', e => { if (e.target.id !== 'waEnabled') markDirty(); e.target.classList.remove('bad'); });
+  $('waEnabled').addEventListener('change', async () => {
+    $('waEnabledTxt').textContent = $('waEnabled').checked ? 'On' : 'Off';
+    // the on/off switch applies immediately, without Save
+    const j = await waApi('/api/alerts/config', { enabled: $('waEnabled').checked });
+    if (j) waMsg($('waEnabled').checked ? '✓ Alerts turned on' : 'Alerts turned off', 'ok');
+  });
+
+  $('ntGen').onclick = () => {
+    const a = new Uint8Array(10); crypto.getRandomValues(a);
+    const abc = 'abcdefghijkmnpqrstuvwxyz23456789';
+    $('ntTopic').value = 'esd-current-' + [...a].map(b => abc[b % abc.length]).join('');
+    $('ntTopic').classList.remove('bad'); markDirty();
+  };
+  $('ntCopy').onclick = async () => {
+    try { await navigator.clipboard.writeText($('ntSubUrl').textContent); $('ntCopy').textContent = 'Copied'; }
+    catch { $('ntCopy').textContent = 'Select & copy'; }
+    setTimeout(() => $('ntCopy').textContent = 'Copy', 1500);
+  };
+
+  function renderWaState(a) {
+    const el = $('waState');
+    if (!a.configured) { el.className = 'wa-state warn'; el.textContent = `Not set up yet: ${a.problem}.`; }
+    else if (a.muted) { el.className = 'wa-state warn'; el.textContent = 'Alerts are off. Turn the switch on to send them.'; }
+    else if (a.last && !a.last.ok) { el.className = 'wa-state bad'; el.textContent = `Last send failed: ${a.last.error}`; }
+    else { el.className = 'wa-state ok'; el.textContent = `✓ Active: alerts go to topic "${a.topic}".`; }
+  }
+
+  function fillForm(c) {
+    $('waEnabled').checked = c.enabled; $('waEnabledTxt').textContent = c.enabled ? 'On' : 'Off';
+    $('ntTopic').value = c.topic;
+    $('ntServer').value = c.server;
+    $('ntToken').value = ''; $('ntClear').checked = false;
+    $('ntToken').placeholder = c.has_token ? '•••••• saved (leave blank to keep)' : 'tk_…';
+    $('ntTokenHint').textContent = c.has_token ? 'A token is saved.' : 'Only needed for protected topics or a self-hosted server.';
+    $('ntClearRow').hidden = !c.has_token;
+    $('waHold').value = c.hold_ms; $('waCool').value = c.cooldown_s; $('waRecov').checked = c.notify_recovery;
+    // subscribe helper, for the saved topic only
+    $('ntSub').hidden = !c.subscribe_url;
+    if (c.subscribe_url) {
+      $('ntSubUrl').textContent = c.subscribe_url;
+      $('ntSubLink').href = c.subscribe_url;
+      $('ntSubTopic').textContent = c.topic;
+      $('ntSubSrv').textContent = /^https:\/\/ntfy\.sh$/.test(c.server) ? '' : `(server ${c.server})`;
+    }
+    waDirty = false;
+  }
+
+  const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function renderHistory(h) {
+    $('waHist').innerHTML = !h || !h.length ? '<li class="muted">None sent yet.</li>' : h.map(e =>
+      `<li><span class="meta">${new Date(e.time * 1000).toLocaleString([], { hour12: false })} → ${esc(e.to)} · ${e.ok ? '<span style="color:var(--good)">sent</span>' : '<span class="err">failed</span>'}</span>
+       <span>${esc(e.title)}</span>${e.ok ? '' : `<span class="err">${esc(e.error)}</span>`}</li>`).join('');
+  }
+
+  async function loadWaConfig() {
+    try {
+      const j = await (await fetch('/api/alerts/config')).json();
+      if (!waDirty) fillForm(j.config);
+      renderWaState(j.status); renderHistory(j.history);
+    } catch { waMsg('Server unreachable', 'bad'); }
+  }
+
+  async function waApi(path, body) {
+    try {
+      const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const j = await r.json();
+      if (!r.ok) { waMsg(j.error || 'Rejected', 'bad'); return null; }
+      const st = j.status || j;
+      S.meta.alerts = st; renderAlerts(st); renderWaState(st);
+      return j;
+    } catch { waMsg('Server unreachable', 'bad'); return null; }
+  }
+
+  function collectForm() {
+    const topic = $('ntTopic').value.trim(), server = $('ntServer').value.trim() || 'https://ntfy.sh';
+    const errs = [];
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(topic)) { errs.push('Topic: letters, digits, - and _ only (press Generate for one)'); $('ntTopic').classList.add('bad'); }
+    if (!/^https?:\/\/\S+$/.test(server)) { errs.push('Server must be a URL like https://ntfy.sh'); $('ntServer').classList.add('bad'); }
+    return {
+      errs,
+      body: {
+        enabled: $('waEnabled').checked, topic, server,
+        token: $('ntToken').value.trim(), clear_token: $('ntClear').checked,
+        hold_ms: +$('waHold').value, cooldown_s: +$('waCool').value, notify_recovery: $('waRecov').checked,
+      },
+    };
+  }
+
+  async function saveWa() {
+    const { errs, body } = collectForm();
+    if (errs.length) { waMsg(errs[0], 'bad'); return null; }
+    $('waSave').disabled = true;
+    const j = await waApi('/api/alerts/config', body);
+    $('waSave').disabled = false;
+    if (!j) return null;
+    fillForm(j.config);
+    if (j.status.configured) waMsg('✓ Saved. Subscribe to the topic in the ntfy app.', 'ok');
+    else waMsg(`Saved, but still needs: ${j.status.problem}`, 'bad');
+    return j;
+  }
+  $('waForm').onsubmit = e => { e.preventDefault(); saveWa(); };
+  if (location.hash === '#settings') openDrawer();
+
+  $('waTest').onclick = async () => {
+    if (waDirty && !(await saveWa())) return;     // save the form first so the test uses it
+    $('waTest').disabled = true; waMsg('Sending test notification…');
+    const before = (S.meta.alerts && S.meta.alerts.last) ? S.meta.alerts.last.time : 0;
+    const ok = await waApi('/api/alerts/test', {});
+    if (!ok) { $('waTest').disabled = false; return; }
+    // wait for the background sender to report back (up to ~20 s)
+    for (let k = 0; k < 40; k++) {
+      await new Promise(r => setTimeout(r, 500));
+      const j = await (await fetch('/api/alerts/config')).json();
+      const last = j.status.last;
+      if (last && last.time !== before) {
+        renderHistory(j.history); renderWaState(j.status); renderAlerts(j.status);
+        waMsg(last.ok ? `✓ Test sent to topic "${last.to}". Check your phone.` : `✗ ${last.error}`, last.ok ? 'ok' : 'bad');
+        $('waTest').disabled = false; return;
+      }
+    }
+    waMsg('No answer from the ntfy server yet. Check the server terminal.', 'bad');
+    $('waTest').disabled = false;
+  };
+
+  // ---------------- controls ----------------
+  $('winSeg').onclick = e => {
+    const b = e.target.closest('button'); if (!b) return;
+    S.windowS = +b.dataset.w;
+    [...$('winSeg').children].forEach(x => x.classList.toggle('on', x === b));
+    draw();
+  };
+  $('pauseBtn').onclick = () => {
+    S.paused = !S.paused;
+    S.frozen = S.paused ? S.samples.slice() : null;
+    $('pauseBtn').textContent = S.paused ? 'Resume' : 'Pause';
+    draw();
+  };
+
+  // ---------------- chart ----------------
+  const cv = $('cv'), ctx = cv.getContext('2d'), plot = $('plot'), tip = $('tip');
+  const PAD = { l: 56, r: 64, t: 12, b: 28 };
+  let geom = null;
+
+  function visible() {
+    const data = S.paused ? S.frozen : S.samples;
+    if (!data.length) return { data, from: 0, to: 0 };
+    const last = data[data.length - 1].t;
+    const from = S.windowS ? last - S.windowS * 1000 : data[0].t;
+    let lo = 0, hi = data.length;              // binary search first index >= from
+    while (lo < hi) { const m = (lo + hi) >> 1; data[m].t < from ? lo = m + 1 : hi = m; }
+    return { data: data.slice(Math.max(0, lo - 1)), from: S.windowS ? from : data[0].t, to: last };
+  }
+
+  function niceStep(range, target) {
+    const raw = range / target, p = Math.pow(10, Math.floor(Math.log10(raw)));
+    const n = raw / p;
+    return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * p;
+  }
+
+  function draw() {
+    const dpr = window.devicePixelRatio || 1;
+    const W = plot.clientWidth, H = plot.clientHeight;
+    if (cv.width !== W * dpr || cv.height !== H * dpr) { cv.width = W * dpr; cv.height = H * dpr; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+
+    const C = {
+      grid: css('--grid'), ink2: css('--ink-2'), ink3: css('--ink-3'), series: css('--series'),
+      band: css('--band'), edge: css('--band-edge'), crit: css('--critical'), surf: css('--surface'), ink: css('--ink'),
+    };
+    const { data, from, to } = visible();
+    const x0 = PAD.l, x1 = W - PAD.r, y0 = PAD.t, y1 = H - PAD.b;
+
+    // y-range always includes the threshold band
+    let ymin = S.low, ymax = S.high;
+    for (const s of data) { if (s.i < ymin) ymin = s.i; if (s.i > ymax) ymax = s.i; }
+    const padY = (ymax - ymin) * 0.08 || 50;
+    ymin -= padY; ymax += padY;
+    const ystep = niceStep(ymax - ymin, 6);
+    ymin = Math.floor(ymin / ystep) * ystep; ymax = Math.ceil(ymax / ystep) * ystep;
+
+    const span = Math.max(to - from, S.windowS ? S.windowS * 1000 : 1000);
+    const xFrom = S.windowS ? to - span : from;
+    const X = t => x0 + (t - xFrom) / span * (x1 - x0);
+    const Y = v => y1 - (v - ymin) / (ymax - ymin) * (y1 - y0);
+    geom = { X, Y, data, x0, x1, y0, y1, xFrom, span };
+
+    ctx.font = '11px ' + getComputedStyle(document.body).fontFamily;
+    ctx.textBaseline = 'middle';
+
+    // grid + y labels
+    ctx.lineWidth = 1;
+    for (let v = ymin; v <= ymax + 1e-9; v += ystep) {
+      const y = Math.round(Y(v)) + .5;
+      ctx.strokeStyle = C.grid; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
+      ctx.fillStyle = C.ink3; ctx.textAlign = 'right'; ctx.fillText(Math.round(v), x0 - 8, y);
+    }
+    // x labels (elapsed since first sample)
+    const base = t0();
+    const xstep = niceStep(span / 1000, 7) * 1000;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (let t = Math.ceil((xFrom - base) / xstep) * xstep + base; t <= xFrom + span; t += xstep) {
+      const x = X(t); if (x < x0 - 1 || t < base || !data.length) continue;
+      ctx.fillStyle = C.ink3; ctx.fillText(fmtAxis(t - base), x, y1 + 8);
+    }
+
+    // threshold band
+    const bt = Y(S.high), bb = Y(S.low);
+    ctx.fillStyle = C.band; ctx.fillRect(x0, bt, x1 - x0, bb - bt);
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = C.edge; ctx.lineWidth = 1;
+    for (const y of [bt, bb]) { ctx.beginPath(); ctx.moveTo(x0, Math.round(y) + .5); ctx.lineTo(x1, Math.round(y) + .5); ctx.stroke(); }
+    ctx.setLineDash([]);
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.fillStyle = C.ink2;
+    ctx.fillText(`High ${Math.round(S.high)}`, x1 + 6, bt);
+    ctx.fillText(`Low ${Math.round(S.low)}`, x1 + 6, bb);
+
+    if (!data.length) {
+      ctx.fillStyle = C.ink3; ctx.textAlign = 'center';
+      ctx.fillText('Waiting for samples…', (x0 + x1) / 2, (y0 + y1) / 2);
+      return;
+    }
+
+    // line (decimate to ~2 points per pixel column: min/max)
+    ctx.save(); ctx.beginPath(); ctx.rect(x0, y0 - 4, x1 - x0 + 4, y1 - y0 + 8); ctx.clip();
+    ctx.strokeStyle = C.series; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.beginPath();
+    let col = -1, cmin = 0, cmax = 0, first = true;
+    const flush = c => {
+      if (c < 0) return;
+      if (first) { ctx.moveTo(c, Y(cmin)); first = false; } else ctx.lineTo(c, Y(cmin));
+      if (cmax !== cmin) ctx.lineTo(c, Y(cmax));
+    };
+    const dense = data.length > (x1 - x0) * 1.5;
+    for (const s of data) {
+      const x = X(s.t);
+      if (!dense) { first ? (ctx.moveTo(x, Y(s.i)), first = false) : ctx.lineTo(x, Y(s.i)); continue; }
+      const c = Math.round(x);
+      if (c !== col) { flush(col); col = c; cmin = cmax = s.i; }
+      else { if (s.i < cmin) cmin = s.i; if (s.i > cmax) cmax = s.i; }
+    }
+    if (dense) flush(col);
+    ctx.stroke();
+
+    // out-of-range markers (only when sparse enough to be readable)
+    if (data.length < (x1 - x0) / 2) {
+      for (const s of data) if (state(s.i) !== 'ok') {
+        ctx.beginPath(); ctx.arc(X(s.t), Y(s.i), 3, 0, Math.PI * 2);
+        ctx.fillStyle = C.crit; ctx.fill();
+      }
+    } else {   // dense: tint the out-of-range parts of the line red
+      ctx.strokeStyle = C.crit; ctx.lineWidth = 2;
+      for (const [a, b] of [[y0 - 10, bt], [bb, y1 + 10]]) {
+        ctx.save(); ctx.beginPath(); ctx.rect(x0, a, x1 - x0, b - a); ctx.clip();
+        ctx.beginPath(); let f = true;
+        for (const s of data) { const x = X(s.t), y = Y(s.i); f ? (ctx.moveTo(x, y), f = false) : ctx.lineTo(x, y); }
+        ctx.stroke(); ctx.restore();
+      }
+    }
+    ctx.restore();
+
+    // live head marker + value label
+    const L = data[data.length - 1];
+    const lx = X(L.t), ly = Y(L.i), lc = state(L.i) === 'ok' ? C.series : C.crit;
+    ctx.beginPath(); ctx.arc(lx, ly, 5.5, 0, Math.PI * 2); ctx.fillStyle = C.surf; ctx.fill();
+    ctx.beginPath(); ctx.arc(lx, ly, 4, 0, Math.PI * 2); ctx.fillStyle = lc; ctx.fill();
+
+    // hover crosshair
+    if (S.hover) {
+      const h = S.hover;
+      const hx = X(h.t), hy = Y(h.i);
+      ctx.strokeStyle = C.ink3; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(Math.round(hx) + .5, y0); ctx.lineTo(Math.round(hx) + .5, y1); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(hx, hy, 5.5, 0, Math.PI * 2); ctx.fillStyle = C.surf; ctx.fill();
+      ctx.beginPath(); ctx.arc(hx, hy, 4, 0, Math.PI * 2); ctx.fillStyle = state(h.i) === 'ok' ? C.series : C.crit; ctx.fill();
+    }
+  }
+
+  plot.addEventListener('mousemove', e => {
+    if (!geom || !geom.data.length) return;
+    const r = plot.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+    if (mx < geom.x0 || mx > geom.x1) { hideTip(); return; }
+    const t = geom.xFrom + (mx - geom.x0) / (geom.x1 - geom.x0) * geom.span;
+    const d = geom.data;
+    let lo = 0, hi = d.length - 1;
+    while (lo < hi) { const m = (lo + hi) >> 1; d[m].t < t ? lo = m + 1 : hi = m; }
+    const s = (lo > 0 && Math.abs(d[lo - 1].t - t) < Math.abs(d[lo].t - t)) ? d[lo - 1] : d[lo];
+    S.hover = s;
+    const st = state(s.i);
+    tip.innerHTML = `<div class="v">${Math.round(s.i)} mA</div>
+      <div class="m">${fmtElapsed(s.t - t0())} · ${fmtWall(s.wall)}</div>
+      <div class="m">seq ${s.seq}</div>
+      <div class="tag ${st}">${st === 'ok' ? '✓ In range' : st === 'hi' ? '▲ Above high' : '▼ Below low'}</div>`;
+    tip.style.display = 'block';
+    const tx = geom.X(s.t), tw = tip.offsetWidth;
+    tip.style.left = (tx + 14 + tw > plot.clientWidth ? tx - tw - 14 : tx + 14) + 'px';
+    tip.style.top = Math.max(0, Math.min(my - 30, plot.clientHeight - tip.offsetHeight)) + 'px';
+    draw();
+  });
+  const hideTip = () => { S.hover = null; tip.style.display = 'none'; draw(); };
+  plot.addEventListener('mouseleave', hideTip);
+
+  // ---------------- panels ----------------
+  function updatePanels() {
+    const all = S.samples;
+    const alive = performance.now() - S.lastMsg < 3000 && /^live|^demo/.test(S.meta.status || '') && !/finished|disconnected/.test(S.meta.status || '');
+    $('connDot').className = 'dot ' + (alive ? 'on' : (S.lastMsg ? 'off' : ''));
+    $('clock').textContent = new Date().toLocaleTimeString([], { hour12: false });
+    if (!all.length) return;
+
+    const L = all[all.length - 1], st = state(L.i);
+    $('liveVal').textContent = Math.round(L.i);
+    const ls = $('liveStatus');
+    ls.className = 'status ' + st;
+    ls.textContent = st === 'ok' ? '✓ In range' : st === 'hi' ? `▲ Above high by ${Math.round(L.i - S.high)} mA` : `▼ Below low by ${Math.round(S.low - L.i)} mA`;
+    $('devTime').textContent = `${(L.t / 1000).toFixed(2)} s`;
+    $('seqVal').textContent = L.seq;
+    $('lkElapsed').textContent = fmtElapsed(L.t - all[0].t);
+
+    // rate over the last 5 s of device time
+    let k = all.length - 1; while (k > 0 && L.t - all[k].t < 5000) k--;
+    const dt = (L.t - all[k].t) / 1000;
+    $('lkRate').textContent = dt > 0 ? `${((all.length - 1 - k) / dt).toFixed(1)} Hz` : '—';
+
+    const { data } = visible();
+    if (data.length) {
+      let mn = Infinity, mx = -Infinity, sum = 0, inr = 0;
+      for (const s of data) { mn = Math.min(mn, s.i); mx = Math.max(mx, s.i); sum += s.i; if (state(s.i) === 'ok') inr++; }
+      $('stMin').textContent = `${Math.round(mn)} mA`;
+      $('stMax').textContent = `${Math.round(mx)} mA`;
+      $('stAvg').textContent = `${Math.round(sum / data.length)} mA`;
+      const pct = inr / data.length * 100;
+      $('stIn').textContent = `${pct.toFixed(1)} %`;
+      $('inBar').style.width = pct + '%';
+    }
+
+    // events
+    const ev = $('evBody');
+    if (!S.events.length) ev.innerHTML = '<tr><td colspan="4" class="empty">No excursions yet.</td></tr>';
+    else ev.innerHTML = S.events.slice(0, 50).map(e => {
+      const dur = ((e.end ?? L.t) - e.start) / 1000;
+      return `<tr><td>${fmtElapsed(e.start - all[0].t)}</td>
+        <td><span class="tag ${e.kind}">${e.kind === 'hi' ? '▲ Above high' : '▼ Below low'}</span>${e.end ? '' : ' <span class="tag" style="color:var(--ink-3)">· ongoing</span>'}</td>
+        <td class="r">${Math.round(e.peak)} mA</td><td class="r">${dur.toFixed(1)} s</td></tr>`;
+    }).join('');
+
+    // latest samples
+    $('recentBody').innerHTML = all.slice(-6).reverse().map(s =>
+      `<tr><td>${fmtElapsed(s.t - all[0].t)}</td><td class="r"><span class="tag ${state(s.i)}">${Math.round(s.i)}</span></td><td class="r">${s.seq}</td></tr>`).join('');
+  }
+
+  // ---------------- loop ----------------
+  let lastPanel = 0;
+  function frame(ts) {
+    if (!S.paused && !S.hover) draw();
+    if (ts - lastPanel > 200) { updatePanels(); lastPanel = ts; }
+    requestAnimationFrame(frame);
+  }
+  new ResizeObserver(() => draw()).observe(plot);
+  boot();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

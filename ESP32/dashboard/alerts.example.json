@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "server": "https://ntfy.sh",
+  "topic": "esd-current-change-me-7f3k2",
+  "token": "",
+  "hold_ms": 50,
+  "cooldown_s": 10,
+  "notify_recovery": true
+}
