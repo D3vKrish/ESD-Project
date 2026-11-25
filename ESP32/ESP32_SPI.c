@@ -1,33 +1,19 @@
-/*
- * ESP32 SPI Telemetry Receiver (16-Byte Aligned DMA) -- Arduino IDE
- *
- * Pairs with STM32F446RE SPI1 Master (500 kHz, Mode 0)
- *
- * Wiring (Direct 3.3V, NO transceivers):
- *   STM32 PA4 (A2)  <------> ESP32 GPIO 5  (CS)
- *   STM32 PA5 (D13) <------> ESP32 GPIO 18 (SCK)
- *   STM32 PA7 (D11) <------> ESP32 GPIO 23 (MOSI)
- *   STM32 PA6 (D12) <------> ESP32 GPIO 19 (MISO)
- *   STM32 GND       <------> ESP32 GND
- */
-
 #include <Arduino.h>
 #include "driver/spi_slave.h"
 #include "esp_timer.h"
 
-// ---------------- Pins (VSPI default) ----------------
 #define GPIO_CS     5
 #define GPIO_SCLK   18
 #define GPIO_MOSI   23
 #define GPIO_MISO   19
 
-#define TELEMETRY_MAGIC 0xA55A
+#define SYNC_WORD 0xA55A
 #define STATS_PERIOD_MS 5000
 #define VERBOSE_RX      1
 
 // ---------------- 16-byte Aligned Telemetry Frame ----------------
 typedef struct __attribute__((packed)) {
-  uint16_t magic;      // 0xA55A
+  uint16_t sync;      // 0xA55A
   uint16_t seq;        // sequence counter
   uint32_t timestamp;  // microsecond timestamp from STM32 TIM2
   int32_t  current_ua; // current in microamperes
@@ -119,9 +105,9 @@ static void handleFrame(const rx_item_t &item) {
   const telemetry_t &t = item.telem;
 
   // 1. Verify Magic Sync Word
-  if (t.magic != TELEMETRY_MAGIC) {
+  if (t.sync != SYNC_WORD) {
     g_badFrames++;
-    Serial.printf("[SPI ERR] Bad magic: 0x%04X (expected 0x%04X)\n", t.magic, TELEMETRY_MAGIC);
+    Serial.printf("[SPI ERR] Bad sync: 0x%04X (expected 0x%04X)\n", t.sync, SYNC_WORD);
     return;
   }
 

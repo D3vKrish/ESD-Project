@@ -27,7 +27,7 @@ A dual-MCU embedded system featuring an **STM32F446RE (ARM Cortex-M4)** running 
 |   +-----------------------------------------------------------------------+   |
 |   |                              ESP32 GATEWAY                            |   |
 |   |  - Hardware SPI Slave with DMA Buffering                              |   |
-|   |  - Magic-word validation (0xA55A) + 16-bit additive checksum          |   |
+|   |  - Sync-word validation (0xA55A) + 16-bit additive checksum          |   |
 |   |  - Serial / Wi-Fi telemetry forwarder                                 |   |
 |   +------------------------------------+----------------------------------+   |
 +----------------------------------------|--------------------------------------+
@@ -53,12 +53,12 @@ A dual-MCU embedded system featuring an **STM32F446RE (ARM Cortex-M4)** running 
   - Direct CMSIS register manipulation for **I2C1**, **SPI1**, **TIM2**, **TIM3 (PWM)**, and **USART2**.
   - No bloated abstraction layers in the critical timing path.
 - **Closed-Loop Digital PI Current Controller**:
-  - Regulates current to a steady setpoint (default: `25.0 mA` / `25,000 µA`).
+  - Regulates current to a steady setpoint (default: `25.0 mA`).
   - Sampling rate: **50 Hz** ($20\,\text{ms}$ loop).
   - Integral anti-windup clamping to prevent overshoot and hunting on resistive loads.
 - **High-Integrity Inter-Chip SPI Telemetry**:
   - Fixed **16-byte frame** optimized for ESP32 hardware DMA (32-bit word aligned).
-  - Magic byte synchronization (`0xA55A`), sequence numbering, and checksum verification.
+  - Synchronization byte(`0xA55A`), sequence numbering, and checksum verification.
 - **Zero-Dependency Web Dashboard**:
   - Real-time current plotting using lightweight browser canvas/SVG.
   - Server-Sent Events (SSE) backend powered by Python.
@@ -100,12 +100,12 @@ The STM32 transmits a packed, 16-byte fixed-size binary frame to the ESP32. This
 
 ```c
 typedef struct __attribute__((packed)) {
-    uint16_t sync;        // 0x00 - 0x01 : Magic Word (0xA55A)
-    uint16_t seq;         // 0x02 - 0x03 : Incremental Packet Sequence Number
-    uint32_t timestamp;   // 0x04 - 0x07 : Microsecond timestamp from TIM2
-    int32_t  current_ua;  // 0x08 - 0x0B : Measured current in microamperes (µA)
-    uint16_t checksum;    // 0x0C - 0x0D : 16-bit additive sum of bytes [0..11]
-    uint16_t reserved;    // 0x0E - 0x0F : Alignment padding (0x0000)
+    uint16_t sync;        // Synchronization Word (0xA55A)
+    uint16_t seq;         // Packet Sequence Number
+    uint32_t timestamp;   // Microsecond timestamp
+    int32_t  current_ua;  // Measured current in microamperes (µA)
+    uint16_t checksum;    // 16-bit additive sum of bytes
+    uint16_t reserved;    // Alignment padding (0x0000)
 } payload_spi;
 ```
 
