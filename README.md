@@ -116,26 +116,26 @@ typedef struct __attribute__((packed)) {
 ```
 ├── Core/
 │   ├── Inc/
-│   │   ├── i2c.h               # I2C1 bare-metal bit definitions & INA219 declarations
-│   │   ├── main.h              # Peripheral clock & timer bit definitions
-│   │   └── spi.h               # SPI1 definitions, payload_spi struct, constants
+│   │   ├── i2c.h               
+│   │   ├── main.h              
+│   │   └── spi.h               
 │   ├── Src/
-│   │   ├── i2c.c               # Bare-metal I2C driver & INA219 sensor interface
-│   │   ├── main.c              # Main control loop, PI algorithm, PWM & UART
-│   │   ├── spi.c               # SPI1 master transmission & checksum computation
-│   │   └── system_stm32f4xx.c  # CMSIS clock configurations
-│   └── Startup/                # Cortex-M4 assembly startup files
-├── Drivers/                    # ST HAL & ARM CMSIS library files
+│   │   ├── i2c.c               
+│   │   ├── main.c              
+│   │   ├── spi.c               
+│   │   └── system_stm32f4xx.c  
+│   └── Startup/                
+├── Drivers/                    
 ├── ESP32/
-│   ├── ESP32_SPI.c             # ESP32 SPI slave receiver with DMA & queue management
-│   └── dashboard/              # Live dashboard server & frontend
-│       ├── server.py           # SSE stream & REST API HTTP server
-│       ├── sources.py          # Serial data reader & CSV replay engine
-│       ├── alerts.py           # Threshold monitor & ntfy push dispatcher
+│   ├── ESP32_SPI.c             
+│   └── dashboard/              
+│       ├── server.py           
+│       ├── sources.py          
+│       ├── alerts.py           
 │       └── static/
-│           └── index.html      # Real-time web UI
-├── .gitignore                  # Git exclusions for build outputs and artifacts
-└── README.md                   # Project documentation
+│           └── index.html      
+├── .gitignore                  
+└── README.md                  
 ```
 
 ---
